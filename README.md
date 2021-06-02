@@ -21,8 +21,15 @@ default namespace in use for simplify the task
 # Run cicd.sh from repo root folder.
 what script does:
 build docker container adjust:latest on localhost
-deploy it with helm chart `./helm_chart`: 3 replicas and healthcheck enabled. Service should be available withing the k8s as adjust.default.svc.cluster.local FQDN.
-Run test. It runs the same container adjust:latest, because it have built-in curl command, run `curl adjust.default.svc.cluster.local` and print ok if grep lines "Well, hello there"
+`docker build -t adjust:latest .`
+
+deploy it with helm.
+`helm upgrade --install adjust -f values.yaml helm_chart` 
+3 replicas and healthcheck enabled. Service should be available withing the k8s as adjust.default.svc.cluster.local FQDN.
+Run test. 
+`kubectl run -i --tty test --image=adjust:latest --rm --image-pull-policy='Never' --restart=Never --command -- curl adjust.default.svc.cluster.local`
+
+It runs the same container adjust:latest, because it have built-in curl command, run `curl adjust.default.svc.cluster.local` and print ok if grep lines "Well, hello there"
 
 # Consideration
 Because there is no mention about ingress, open public port or use HPA, there is no port accessible outside K8S and there is no autoscaling implemented.
