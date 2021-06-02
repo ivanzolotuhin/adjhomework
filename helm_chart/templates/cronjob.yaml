@@ -1,0 +1,41 @@
+{{- $root := . -}}
+{{- range .Values.cronJobs }}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ $root.Release.Name }}-{{ .name }}
+spec:
+  schedule: {{ toYaml .schedule }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+          labels:
+            app.kubernetes.io/name: {{ $root.Release.Name }}
+            app.kubernetes.io/instance: {{ $root.Release.Name }}
+            environment: {{ $root.Values.environment }}
+            {{- with  $root.Values.customLables }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        spec:
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: {{ $root.Release.Name }}-{{ .name }}
+              {{- if .image.tag }}
+              image: {{ .image.repository }}:{{ .image.tag }}
+              {{- else }}
+              image: {{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}
+              {{- end}}
+              imagePullPolicy: {{ default "IfNotPresent" .image.pullPolicy }}
+              command:
+                {{- toYaml .command | nindent  16 }}
+              args:
+                {{- toYaml .args | nindent 16 }}
+          restartPolicy: {{ toYaml .restartPolicy}}
+---
+  {{- end}}

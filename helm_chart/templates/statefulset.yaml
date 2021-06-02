@@ -1,0 +1,137 @@
+{{- if .Values.application.statefulset }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/name: {{ .Release.Name }}
+    helm.sh/chart: {{ .Chart.Name }}
+    {{- if .Chart.AppVersion }}
+    app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    {{- end }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Release.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  serviceName: {{ .Release.Name }}
+  podManagementPolicy: {{ .Values.statefulset.podManagementPolicy }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Release.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        environment: {{ .Values.environment }}
+        {{- with  .Values.customLables }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        force-redeploy: "{{ date "20060102150405" .Release.Time }}"
+    spec:
+      securityContext:
+      {{- toYaml .Values.podSecurityContext | nindent 8 }}
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      containers:
+        - name: {{ .Release.Name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ default "IfNotPresent" .Values.image.pullPolicy }}
+          {{- if .Values.application.lifecycle }}
+          lifecycle:
+            {{- .Values.application.lifecycle | toYaml | nindent 12}}
+          {{- end}}
+          ports:
+            {{- range .Values.service.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .targetPort }}
+              protocol: TCP
+            {{- end }}
+          {{- if .Values.application.envFrom}}
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.application.envFrom }}    
+          {{- end }}
+          {{- if .Values.application.env }}
+          env:
+          {{- range .Values.application.env }}
+          - name: {{ .name | title | upper }}
+            value: {{ .value }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.application.probes }}
+          {{- if .Values.application.probes.livenessProbe }}
+          livenessProbe:
+            httpGet:
+              path: "{{ .Values.application.probes.livenessProbe.path }}"
+              port: {{ .Values.application.probes.livenessProbe.port }}
+            periodSeconds: {{ .Values.application.probes.livenessProbe.period }}
+            initialDelaySeconds: {{ .Values.application.probes.livenessProbe.delay }}
+            timeoutSeconds: {{ default 3 .Values.application.probes.livenessProbe.timeout }}
+            failureThreshold: {{ default 3 .Values.application.probes.livenessProbe.failureThreshold }}
+          {{- end }}
+          {{- if .Values.application.probes.readinessProbe }}
+          readinessProbe:
+            httpGet:
+              path: "{{ .Values.application.probes.readinessProbe.path }}"
+              port: {{ .Values.application.probes.readinessProbe.port }}
+            periodSeconds: {{ .Values.application.probes.readinessProbe.period }}
+            initialDelaySeconds: {{ .Values.application.probes.readinessProbe.delay }}
+            timeoutSeconds: {{ default 3 .Values.application.probes.readinessProbe.timeout }}
+            failureThreshold: {{ default 3 .Values.application.probes.readinessProbe.failureThreshold }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.application.volumeMounts}}
+          volumeMounts:
+            {{- .Values.application.volumeMounts | toYaml | nindent 10}}
+          {{- end }}
+      {{- if .Values.volumes }}
+      volumes:
+        {{- .Values.volumes | toYaml | nindent 6}}
+      {{- end}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+  {{- range .Values.application.statefulset.volumeClaimTemplates }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .name }}
+      labels:
+        app.kubernetes.io/name: {{ $.Release.Name }}
+        helm.sh/chart: {{ $.Chart.Name }}
+        {{- if $.Chart.AppVersion }}
+        app.kubernetes.io/version: {{ $.Chart.AppVersion | quote }}
+        app.kubernetes.io/instance: {{ $.Release.Name }}
+        {{- end }}
+        app.kubernetes.io/managed-by: {{ $.Release.Service }}
+      namespace: {{ $.Release.Namespace | quote }}
+      annotations:
+      {{- if .storageClass }}
+        volume.beta.kubernetes.io/storage-class: {{ .storageClass | quote }}
+      {{- else }}
+        volume.alpha.kubernetes.io/storage-class: default
+      {{- end }}
+    spec:
+      accessModes:
+        - {{ .accessMode | quote }}
+      resources:
+        requests:
+          storage: {{ .storageSize | quote }}
+  {{- end}}
+{{- end}}
+

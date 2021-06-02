@@ -1,0 +1,26 @@
+{{- $svcPort := (index .Values.service.ports 0).port -}}
+{{- $svcHost := .Release.Name -}}
+
+{{- if .Values.ingress }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name | quote }}
+  namespace: {{ $.Release.Namespace | quote }}
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/use-regex: {{ .Values.ingress.regex | quote }}
+spec:
+  rules:
+  - http:
+      paths:
+      {{- range .Values.ingress.uris }}
+      - path: {{ .path }}
+        pathType: {{ .type }}
+        backend:
+          service:
+            name: {{ $svcHost }}
+            port:
+              number: {{ $svcPort }}
+      {{- end }}
+{{- end }}
